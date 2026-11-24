@@ -29,4 +29,6 @@ use the editor.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
 
-- Controller settings flow through `publishConfig` (src/lib/controller-store.ts), which pushes to the `controller_state` row via password-checked server functions; the external simulator polls the read-only `/api/public/simulator-config` feed. One sync path keeps both apps consistent.
+- Controller settings flow through `publishConfig` (src/lib/controller-store.ts), which pushes to the `controller_state` row via password-checked server functions; each save is also POSTed (Bearer key) to the simulator's receiver URL stored server-side in that row; `/api/public/simulator-config` remains a read-only fallback feed. One sync path keeps both apps consistent.
+
+- Installability is manifest-only (public/manifest.webmanifest, no service worker) so previews never cache stale builds.

@@ -19,18 +19,24 @@ export type Database = {
           config: Json
           id: string
           password_hash: string
+          push_key: string
+          push_url: string
           updated_at: string
         }
         Insert: {
           config?: Json
           id: string
           password_hash: string
+          push_key?: string
+          push_url?: string
           updated_at?: string
         }
         Update: {
           config?: Json
           id?: string
           password_hash?: string
+          push_key?: string
+          push_url?: string
           updated_at?: string
         }
         Relationships: []

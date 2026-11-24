@@ -6,6 +6,8 @@ import { SYMBOLS, BROKERS } from "@/lib/symbols";
 import { useConfig, addHistory, hydrateConfig, sessionPassword, useSyncStatus, type Config, type ThemeMode } from "@/lib/controller-store";
 import { loadRemoteConfig, changePassword } from "@/lib/sync.functions";
 import { SimulatorLink } from "./SimulatorLink";
+import { InstallButton } from "./InstallButton";
+import logo from "@/assets/logo.png";
 import { pickSide, isWinner, entryPrice, type Position } from "@/lib/trade-engine";
 
 const fmt = (n: number, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/,/g, " ");
@@ -52,6 +54,7 @@ export function Controller() {
   const tradeIdx = useRef(0);
   const [locked, setLocked] = useState(true);
   const [unlocking, setUnlocking] = useState(false);
+  const [push, setPush] = useState({ url: "", hasKey: false });
   const sync = useSyncStatus();
   const loadFn = useServerFn(loadRemoteConfig);
   const changeFn = useServerFn(changePassword);
@@ -174,12 +177,14 @@ export function Controller() {
             const r = await loadFn({ data: { password: unlockPw } });
             if (!r.ok) { toast.error("Wrong password"); return; }
             sessionPassword.set(unlockPw);
+            setPush({ url: r.pushUrl, hasKey: r.hasPushKey });
             const remote = JSON.parse(r.config || "{}") as Partial<Config>;
             if (Object.keys(remote).length) { hydrateConfig(remote); setDraft((d) => ({ ...d, ...remote })); }
             setLocked(false); setUnlockPw("");
           } catch { toast.error("Could not reach the server"); } finally { setUnlocking(false); }
         }}>
-          <div className="text-xl font-bold">🔒 Controller Locked</div>
+          <img src={logo} alt="" className="mx-auto h-16 w-16 rounded-2xl" />
+          <div className="text-center text-xl font-bold">🔒 Controller Locked</div>
           <input type="password" className="field" placeholder="Enter password..." value={unlockPw} onChange={(e) => setUnlockPw(e.target.value)} autoFocus />
           <button className="btn-primary w-full py-3" disabled={unlocking}>{unlocking ? "Checking…" : "Unlock"}</button>
           <p className="text-center text-xs text-muted-foreground">First time? The starting password is 1234 — change it after unlocking.</p>
@@ -193,7 +198,7 @@ export function Controller() {
       {/* Header */}
       <section className="panel">
         <div className="flex items-center gap-4">
-          <div className="btn-primary flex h-14 w-14 items-center justify-center rounded-xl text-xl font-black">HF</div>
+          <img src={logo} alt="High Frequency Chess Bot logo" className="h-14 w-14 rounded-xl" />
           <div>
             <h1 className="text-2xl font-black leading-tight">High Frequency Chess Bot</h1>
             <p className="text-muted-foreground">Real-Time HFT Bot & Simulator Profile Sync</p>
@@ -383,7 +388,7 @@ export function Controller() {
         
       </section>
 
-      <SimulatorLink />
+      <SimulatorLink initialUrl={push.url} hasKey={push.hasKey} />
 
       <section id="ota" className="panel">
         <div className="flex flex-wrap items-center gap-2">
@@ -401,6 +406,8 @@ export function Controller() {
           toast.success(`You're on the latest version (${APP_VERSION}). Prices refreshed.`);
         }}>{checking ? "Checking…" : "⬇️ CHECK & PULL OTA UPDATES"}</button>
       </section>
+
+      <InstallButton />
     </main>
   );
 }

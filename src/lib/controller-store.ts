@@ -65,7 +65,7 @@ function load(): Config {
 const SKEY = "hfcb.session.pw";
 export const sessionPassword = { get: () => sessionStorage.getItem(SKEY) || "", set: (p: string) => sessionStorage.setItem(SKEY, p) };
 let pushTimer: ReturnType<typeof setTimeout> | undefined;
-export const syncStatus = { state: "idle" as "idle" | "saving" | "saved" | "error", listeners: new Set<() => void>() };
+export const syncStatus = { state: "idle" as "idle" | "saving" | "saved" | "error", delivered: "off" as "sent" | "failed" | "off", listeners: new Set<() => void>() };
 function setSync(st: typeof syncStatus.state) { syncStatus.state = st; syncStatus.listeners.forEach((l) => l()); }
 
 function schedulePush() {
@@ -74,6 +74,7 @@ function schedulePush() {
   pushTimer = setTimeout(async () => {
     try {
       const r = await pushRemoteConfig({ data: { password: sessionPassword.get(), config: JSON.stringify(load()) } });
+      if (r.ok && "delivered" in r) syncStatus.delivered = r.delivered;
       setSync(r.ok ? "saved" : "error");
     } catch { setSync("error"); }
   }, 400);

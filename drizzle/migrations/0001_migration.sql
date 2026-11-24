@@ -1,0 +1,1 @@
+ALTER TABLE public.controller_state ADD COLUMN push_url text NOT NULL DEFAULT '', ADD COLUMN push_key text NOT NULL DEFAULT '';
