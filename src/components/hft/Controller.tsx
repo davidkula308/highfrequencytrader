@@ -187,7 +187,6 @@ export function Controller() {
           <div className="text-center text-xl font-bold">🔒 Controller Locked</div>
           <input type="password" className="field" placeholder="Enter password..." value={unlockPw} onChange={(e) => setUnlockPw(e.target.value)} autoFocus />
           <button className="btn-primary w-full py-3" disabled={unlocking}>{unlocking ? "Checking…" : "Unlock"}</button>
-          <p className="text-center text-xs text-muted-foreground">First time? The starting password is 1234 — change it after unlocking.</p>
         </form>
       </div>
     );

@@ -11,7 +11,11 @@ async function admin() {
 }
 async function verify(pw: string) {
   const db = await admin();
-  const { data } = await db.from("controller_state").select("password_hash").eq("id", "default").single();
+  const { data, error } = await db.from("controller_state").select("password_hash").eq("id", "default").single();
+  if (error && error.code !== "PGRST116") {
+    console.error("[controller] password verification query failed", error);
+    throw new Error("Password verification is unavailable");
+  }
   return !!data && data.password_hash === (await sha(pw));
 }
 
