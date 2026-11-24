@@ -29,4 +29,4 @@ use the editor.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
 
-- Controller settings flow through `publishConfig` in src/lib/controller-store.ts; the simulator link plugs in there so every control syncs through one path.
+- Controller settings flow through `publishConfig` (src/lib/controller-store.ts), which pushes to the `controller_state` row via password-checked server functions; the external simulator polls the read-only `/api/public/simulator-config` feed. One sync path keeps both apps consistent.

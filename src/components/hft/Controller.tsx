@@ -3,7 +3,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { getLivePrice } from "@/lib/prices.functions";
 import { SYMBOLS, BROKERS } from "@/lib/symbols";
-import { useConfig, addHistory, getLockPassword, setLockPassword, type Config, type ThemeMode } from "@/lib/controller-store";
+import { useConfig, addHistory, hydrateConfig, sessionPassword, useSyncStatus, type Config, type ThemeMode } from "@/lib/controller-store";
+import { loadRemoteConfig, changePassword } from "@/lib/sync.functions";
+import { SimulatorLink } from "./SimulatorLink";
 import { pickSide, isWinner, entryPrice, type Position } from "@/lib/trade-engine";
 
 const fmt = (n: number, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/,/g, " ");
@@ -48,7 +50,11 @@ export function Controller() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [stats, setStats] = useState({ opened: 0, closed: 0, pl: 0 });
   const tradeIdx = useRef(0);
-  const [locked, setLocked] = useState(false);
+  const [locked, setLocked] = useState(true);
+  const [unlocking, setUnlocking] = useState(false);
+  const sync = useSyncStatus();
+  const loadFn = useServerFn(loadRemoteConfig);
+  const changeFn = useServerFn(changePassword);
   const [unlockPw, setUnlockPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [amount, setAmount] = useState("");
@@ -162,10 +168,21 @@ export function Controller() {
   if (locked) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
-        <form className="panel w-full max-w-sm space-y-4" onSubmit={(e) => { e.preventDefault(); if (unlockPw === getLockPassword()) { setLocked(false); setUnlockPw(""); } else toast.error("Wrong password"); }}>
+        <form className="panel w-full max-w-sm space-y-4" onSubmit={async (e) => {
+          e.preventDefault(); setUnlocking(true);
+          try {
+            const r = await loadFn({ data: { password: unlockPw } });
+            if (!r.ok) { toast.error("Wrong password"); return; }
+            sessionPassword.set(unlockPw);
+            const remote = JSON.parse(r.config || "{}") as Partial<Config>;
+            if (Object.keys(remote).length) { hydrateConfig(remote); setDraft((d) => ({ ...d, ...remote })); }
+            setLocked(false); setUnlockPw("");
+          } catch { toast.error("Could not reach the server"); } finally { setUnlocking(false); }
+        }}>
           <div className="text-xl font-bold">🔒 Controller Locked</div>
           <input type="password" className="field" placeholder="Enter password..." value={unlockPw} onChange={(e) => setUnlockPw(e.target.value)} autoFocus />
-          <button className="btn-primary w-full py-3">Unlock</button>
+          <button className="btn-primary w-full py-3" disabled={unlocking}>{unlocking ? "Checking…" : "Unlock"}</button>
+          <p className="text-center text-xs text-muted-foreground">First time? The starting password is 1234 — change it after unlocking.</p>
         </form>
       </div>
     );
@@ -186,7 +203,8 @@ export function Controller() {
           <span className={`chip ${statusTone}`}><span className="h-2.5 w-2.5 animate-pulse-dot rounded-full bg-current" />{cfg.botRunning ? "BOT RUNNING" : "BOT IDLE"}</span>
           <button className="chip" onClick={() => live1("ctrlTheme", cfg.ctrlTheme === "auto" ? "dark" : cfg.ctrlTheme === "dark" ? "light" : "auto")}>🌗 {cfg.ctrlTheme[0]!.toUpperCase() + cfg.ctrlTheme.slice(1)}</button>
           <button className="chip border-primary bg-primary-soft text-primary" onClick={() => document.getElementById("ota")?.scrollIntoView({ behavior: "smooth" })}>⬇️ Pull OTA</button>
-          <button className="chip" onClick={() => setLocked(true)}>🔒 Lock</button>
+          <span className={`chip text-sm ${sync === "error" ? "border-destructive text-destructive" : "text-muted-foreground"}`}>{sync === "saving" ? "⏳ Syncing…" : sync === "error" ? "⚠️ Sync failed" : "☁️ Synced"}</span>
+          <button className="chip" onClick={() => { sessionPassword.set(""); setLocked(true); }}>🔒 Lock</button>
         </div>
       </section>
 
@@ -239,7 +257,7 @@ export function Controller() {
         <div className="mt-4 grid grid-cols-3 gap-2">
           <button className="btn-primary py-3" disabled={cfg.botRunning} onClick={() => { update({ botRunning: true }); toast.success("HFT Bot started"); }}>▶ Start HFT Bot</button>
           <button className="btn-dark py-3" onClick={() => { update({ botRunning: false }); toast("Bot stopped"); }}>⏹ Stop Bot</button>
-          <button className="btn-success py-3" onClick={() => { closeTrades(undefined, true); toast.success("All positions closed in profit"); }}>💰 Close All Profit</button>
+          <button className="btn-success py-3" onClick={() => { closeTrades(undefined, true); update({ closeAllNonce: cfg.closeAllNonce + 1 }); toast.success("All positions closed in profit"); }}>💰 Close All Profit</button>
         </div>
 
         <div className="mt-4 flex items-start justify-between gap-2">
@@ -360,10 +378,12 @@ export function Controller() {
         <Label>🔐 Change Controller Lock Password</Label>
         <div className="flex gap-2">
           <input type="password" className="field" placeholder="Enter new password..." value={newPw} onChange={(e) => setNewPw(e.target.value)} />
-          <button className="chip shrink-0" onClick={() => { if (newPw.length < 4) { toast.error("At least 4 characters"); return; } setLockPassword(newPw); setNewPw(""); toast.success("Password updated"); }}>Update</button>
+          <button className="chip shrink-0" onClick={async () => { if (newPw.length < 4) { toast.error("At least 4 characters"); return; } const r = await changeFn({ data: { password: sessionPassword.get(), next: newPw } }); if (!r.ok) { toast.error("Could not update password"); return; } sessionPassword.set(newPw); setNewPw(""); toast.success("Password updated"); }}>Update</button>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">Default password is 1234.</p>
+        
       </section>
+
+      <SimulatorLink />
 
       <section id="ota" className="panel">
         <div className="flex flex-wrap items-center gap-2">
